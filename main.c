@@ -11,7 +11,8 @@
 
 #include <math.h>
 #include "stm32f4xx.h"
-
+#include "stm32f4xx_spi.h"
+#include "commands.h"
 
 #define SRAM_SIZE ((uint32_t)(2*1024*1024))
 
@@ -31,7 +32,7 @@ setup_gpios(void)
   GPIO_InitTypeDef GPIO_InitStructure;
 
   RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
-  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_15 | GPIO_Pin_14 | GPIO_Pin_13;
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_14 | GPIO_Pin_15;
   GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_OUT;
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
   GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
@@ -39,108 +40,137 @@ setup_gpios(void)
   GPIO_Init(GPIOD, &GPIO_InitStructure);
 }
 
-
-static void
-cs_on(void)
-{
-  GPIO_ResetBits(GPIOD, GPIO_Pin_15);
-} 
-static void
-cs_off(void)
-{
-  GPIO_SetBits(GPIOD, GPIO_Pin_15);
-}
 static void
 led_on(void)
 {
-  GPIO_SetBits(GPIOD, GPIO_Pin_13);
+  GPIO_SetBits(GPIOD, GPIO_Pin_15);
 } 
 static void
 led_off(void)
 {
-  GPIO_ResetBits(GPIOD, GPIO_Pin_13);
+  GPIO_ResetBits(GPIOD, GPIO_Pin_15);
 }
-static void
-reset_high(void)
-{
-  GPIO_SetBits(GPIOD, GPIO_Pin_14);
-} 
+
 static void
 reset_low(void)
 {
   GPIO_ResetBits(GPIOD, GPIO_Pin_14);
+} 
+static void
+reset_high(void)
+{
+  GPIO_SetBits(GPIOD, GPIO_Pin_14);
 }
 
 void
-setup_usart(void)
+setup_spi(void)
 { 
   GPIO_InitTypeDef gpio_init; 
-  USART_InitTypeDef usart_init;
-  USART_ClockInitTypeDef clock_init;
+  SPI_InitTypeDef spi_init;
 
-  RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
-  RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
+  //clockage
+  RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI2, ENABLE); 
+  RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE); 
 
-  //pins
-  //USART2
-  //PA2 TX
-  //PA4 CK
-  gpio_init.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_4;
+  //pins for SPI2
+  //PB12 CS\
+  //PB13 CLK
+  //(PB14 MISO)
+  //PB15 MOSI
+  gpio_init.GPIO_Pin = GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_15;
   gpio_init.GPIO_Mode  = GPIO_Mode_AF;
   gpio_init.GPIO_Speed = GPIO_Speed_50MHz;
   gpio_init.GPIO_OType = GPIO_OType_PP;
   gpio_init.GPIO_PuPd  = GPIO_PuPd_NOPULL;
-  GPIO_Init(GPIOA, &gpio_init);
+  GPIO_Init(GPIOB, &gpio_init);
 
-  GPIO_PinAFConfig(GPIOA, GPIO_PinSource2, GPIO_AF_USART2);
-  GPIO_PinAFConfig(GPIOA, GPIO_PinSource4, GPIO_AF_USART2);
+  GPIO_PinAFConfig(GPIOB, GPIO_PinSource12, GPIO_AF_SPI2);
+  GPIO_PinAFConfig(GPIOB, GPIO_PinSource13, GPIO_AF_SPI2);
+  GPIO_PinAFConfig(GPIOB, GPIO_PinSource15, GPIO_AF_SPI2);
 
-  //usart periph 
-  clock_init.USART_Clock = USART_Clock_Enable;
-  clock_init.USART_CPOL = USART_CPOL_High;
-  clock_init.USART_CPHA = USART_CPHA_2Edge;
-  clock_init.USART_LastBit = USART_LastBit_Enable; 
-  USART_ClockInit(USART2, &clock_init);
-  
-  usart_init.USART_BaudRate = 115200;
-  usart_init.USART_WordLength = USART_WordLength_8b;
-  usart_init.USART_StopBits = USART_StopBits_1_5;
-  usart_init.USART_Parity = USART_Parity_No;
-  usart_init.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
-  usart_init.USART_Mode = USART_Mode_Tx; 
-  USART_Init(USART2, &usart_init); 
+  //spi periph 
+  SPI_StructInit(&spi_init);
+  spi_init.SPI_Direction = SPI_Direction_1Line_Tx;
+  spi_init.SPI_Mode = SPI_Mode_Master;
+  spi_init.SPI_DataSize = SPI_DataSize_8b;
+  spi_init.SPI_CPOL = SPI_CPOL_High;
+  spi_init.SPI_CPHA = SPI_CPHA_2Edge;
+  spi_init.SPI_NSS = SPI_NSS_Soft;
+  spi_init.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_32;
+  spi_init.SPI_CRCPolynomial = 0;
+  spi_init.SPI_FirstBit = SPI_FirstBit_MSB;
 
-  USART_Cmd(USART2, ENABLE);
+  SPI_Init(SPI2, &spi_init);
+
+  SPI_Cmd(SPI2, ENABLE);
 }
 
-void 
-USART_putc(USART_TypeDef* USARTx, volatile char c){ 
-    // wait until data register is empty
-    while( !(USARTx->SR & 0x00000040) );
-    USART_SendData(USARTx, c);
-} 
+void
+send_byte(uint8_t byte) {
+  led_off();
+  SPI_I2S_SendData(SPI2,byte);
+  delay(400);
+  led_on();
+}
+
+void
+write_char_to_ram(uint8_t slot, uint8_t data[5]) {
+  send_byte(WRITE_TO_RAM);
+  send_byte(slot); // 0-indexed!
+
+  for(int i = 0; i < 5; i++) {
+    send_byte(data[i]);
+  };
+}
+
+void
+generate_single_segment(uint8_t segment, uint8_t data[]) { 
+  uint8_t row = 0b1<<(7-(segment/5));
+  uint8_t column = (segment%5);
+  data[0] = (column==0) ? row : 0;
+  data[1] = (column==1) ? row : 0;
+  data[2] = (column==2) ? row : 0;
+  data[3] = (column==3) ? row : 0;
+  data[4] = (column==4) ? row : 0;
+}
 
 int 
 main(void)
 {
   setup_gpios();
-  setup_usart();
+  setup_spi();
   delay(2000); 
   reset_low();
   delay(2000); 
   reset_high();
   delay(1000);
 
+  send_byte(ALL_OFF);
+  delay(100);
+  send_byte(FULL_LENGTH);
+  delay(100);
+  send_byte(AUTO_INCR_ON);
+
   while(1) {
-    cs_on();
-    delay(1000);
-    USART_putc(USART2, 0b11110011); // all digits on
-    cs_off();
-    delay(1000);
-    cs_on();
-    delay(1000);
-    USART_putc(USART2, 0b11110000); // all digits off
-    cs_off();
-    delay(1000);
+    send_byte(ALL_ON);
+    delay(10000000);
+    send_byte(ALL_OFF);
+    delay(10000000);
+    send_byte(NORMAL);
+    delay(10000000);
+    for (int i = 0; i<4; i++) {
+      send_byte(0x2D); 
+      delay(10000000);
+      send_byte(0x3D); 
+      delay(10000000);
+      send_byte(0x5F); 
+      delay(10000000);
+      send_byte(0x3D); 
+      delay(10000000);
+    }
+    for (int i = 0; i<16; i++) {
+      send_byte(0x20); 
+      delay(100000);
+    }
   }
 }
