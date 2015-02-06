@@ -125,7 +125,7 @@ write_char_to_ram(uint8_t slot, uint8_t data[5]) {
 
 void
 generate_single_segment(uint8_t segment, uint8_t data[]) { 
-  uint8_t row = 0b1<<(7-(segment/5));
+  uint8_t row = 0b01<<(7-(segment/5));
   uint8_t column = (segment%5);
   data[0] = (column==0) ? row : 0;
   data[1] = (column==1) ? row : 0;
@@ -149,28 +149,53 @@ main(void)
   delay(100);
   send_byte(FULL_LENGTH);
   delay(100);
-  send_byte(AUTO_INCR_ON);
+  send_byte(NORMAL);
+  delay(100);
 
+  uint8_t char1[15] = {
+    0x01, 0x00, 0x00, 0x00, 0x00,
+    0x02, 0x00, 0x00, 0x00, 0x00,
+    0x04, 0x00, 0x00, 0x00, 0x00
+  };
+
+  uint8_t char2[5] = {
+    0x00, 0x00, 0x00, 0x00, 0x00
+  };
+
+  send_byte(AUTO_INCR_ON);
+  delay(100);
+
+  for (int i = 0; i<16; i++) {
+    send_byte(0x90 + i); 
+    delay(100);
+  }
+
+  send_byte(AUTO_INCR_OFF);
+  delay(100);
+  send_byte(0b00001111);
+  delay(100);
+  
   while(1) {
+    /*
+    for (int i = 0; i<15; i+=5) {
+      write_char_to_ram(0, char1 + (i%15));
+      delay(100);
+      write_char_to_ram(1, char1 + ((i+5)%15));
+      delay(100);
+      write_char_to_ram(2, char1 + ((i+10)%15));
+      delay(2000000); 
+    }
+    */
+    for (int j = 0; j<16; j++) { 
+      for (int i = 0; i<36; i++) {
+        generate_single_segment(i, char2);
+        delay(100);
+        write_char_to_ram(j, char2);
+        delay(500000);
+      }
+    }
     send_byte(ALL_ON);
-    delay(10000000);
-    send_byte(ALL_OFF);
-    delay(10000000);
+    delay(2000000);
     send_byte(NORMAL);
-    delay(10000000);
-    for (int i = 0; i<4; i++) {
-      send_byte(0x2D); 
-      delay(10000000);
-      send_byte(0x3D); 
-      delay(10000000);
-      send_byte(0x5F); 
-      delay(10000000);
-      send_byte(0x3D); 
-      delay(10000000);
-    }
-    for (int i = 0; i<16; i++) {
-      send_byte(0x20); 
-      delay(100000);
-    }
   }
 }

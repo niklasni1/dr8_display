@@ -1,0 +1,18 @@
+Opstart
+====
+
+1. Sæt det hele op.
+2. Reset lav i et stykke tid, op.
+3. Sæt i normal mode m/ autoincrement.
+
+to buffere, en for hvert display, på samme SPI med hver deres cs.
+
+send_byte, tar cs og byte og sender ud på spi
+
+global pointer ind i buffers
+
+Interrupt
+====
+
+send_byte(disp1_cs, disp1_buffer[cur]);
+send_byte(disp2_cs, disp2_buffer[cur++]);
